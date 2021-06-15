@@ -105,7 +105,7 @@ class GmailFinin():
                             lst=[]
                             if (key and companyemail) in jsonOutput['body']:
                                 for i in range(len(jsonOutput['body'].split())):
-                                    print(jsonOutput['body'])
+      
                                     if jsonOutput['body'].split()[i] in values:
                                         if jsonOutput['body'].split()[i]=='Name':
                                             s,c='',1
@@ -123,7 +123,6 @@ class GmailFinin():
                             if lst:
                                 df=pd.DataFrame([lst])
                                 try:
-                                    print(lst[0] ,'he', pd.read_csv('data.csv', index=False)[['ID']] )
                                     if lst[0] in pd.read_csv('data.csv').ID:
                                         exit(0)
 
