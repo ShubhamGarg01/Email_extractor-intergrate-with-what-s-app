@@ -26,21 +26,30 @@ class GmailFinin():
     def getLogin(self):
         print("\nPlease enter your Gmail login details below.")
         self.usr = input("Email: ")
-        # self.pwd = input("Password: ")
+        #self.pwd = input("Password: ")
         self.pwd = getpass.getpass("Enter your password --> ")
 
     def attemptLogin(self):
         self.mail = imaplib.IMAP4_SSL("imap.gmail.com", 993)
         if self.mail.login(self.usr, self.pwd):
-            print("\nLogon SUCCESSFUL")
+            print("\nLogin SUCCESSFUL")
             return True
         else:
-            print("\nLogon FAILED")
+            print("\nLogin FAILED")
             return False
+    
+    def CurrentEmailCount(self):
+        # print('hoi')
+        if os.path.isfile("data.csv"):
+            df=pd.read_csv('data.csv')
+            PreviousEmailcount = 0
+            try:
+                if not df[df['CurrentEmail'].isin([self.usr])].empty:
 
-    def checkIfUsersWantsToContinue(self):
-        print("\nWe have found "+str(self.mailCount)+" emails in the mailbox "+self.mailbox+".")
-        return True        
+                    PreviousEmailcount=df.loc[df['CurrentEmail']==self.usr]['Count'].iloc[0]
+            except:
+                pass
+            return int(PreviousEmailcount)
         
     def selectMailbox(self):
         # self.mailbox = input("\nPlease type the name of the mailbox you want to extract, e.g. Inbox: ")
@@ -61,14 +70,34 @@ class GmailFinin():
 
     def searchThroughMailbox(self):
         type, self.data = self.mail.search(None, "ALL")
-        self.data=self.data[::-1]
+        
+        self.data=self.data[::-1]       
         # self.data = self.get_mostnew_email(self.data)
+
         self.ids = self.data[0]
         self.idsList = self.ids.split()
 
+    def IDExist(self,ID_Temp):
+        if os.path.isfile("data.csv"):
+            df=pd.read_csv('data.csv')
+            if df.isin([ID_Temp]).any().any():
+                return True
+        return False
+
     def parseEmails(self):
         jsonOutput = {}
-        for anEmail in self.data[0].split()[::-1]:
+        PreviousEmailcount = self. CurrentEmailCount()
+        if PreviousEmailcount == self.mailCount:
+            print('All Mails have already checked')
+            return
+        elif PreviousEmailcount:
+            EachEmail=self.data[0].split()[PreviousEmailcount::][::-1]
+            df_temp=pd.read_csv('data.csv')
+            df_temp.loc[df_temp['CurrentEmail']==self.usr,'Count']=self.mailCount
+            df_temp.to_csv('data.csv',index=False,header=['ID','Name','Email','number','Flag','Count','CurrentEmail'])
+        else:
+            EachEmail=self.data[0].split()[::-1]
+        for anEmail in EachEmail:
             type, self.data = self.mail.fetch(anEmail, '(UID RFC822)')
             raw = self.data[0][1]
             try:
@@ -101,11 +130,11 @@ class GmailFinin():
                         if partType == "text/plain" and "attachment" not in part:
                             jsonOutput['body'] = part.get_payload()
                             key,companyemail='Payment ID','support@instamojo.com'
-                            values=['ID' ,'Email','number','Name']
+                            values=['ID' ,'Email','number','Name',]
                             lst=[]
                             if (key and companyemail) in jsonOutput['body']:
                                 for i in range(len(jsonOutput['body'].split())):
-      
+                                    # print(jsonOutput['body'])
                                     if jsonOutput['body'].split()[i] in values:
                                         if jsonOutput['body'].split()[i]=='Name':
                                             s,c='',1
@@ -119,17 +148,28 @@ class GmailFinin():
                                         else:
                                             jsonOutput['body'].split()[i]
                                             lst.append(jsonOutput['body'].split()[i+1])
-                            # file=pd.read_csv('data.csv')
-                            if lst:
-                                df=pd.DataFrame([lst])
-                                try:
-                                    if lst[0] in pd.read_csv('data.csv').ID:
-                                        exit(0)
+                            lst.append(0)
+                            lst.append(self.mailCount)
+                            lst.append(self.usr)
 
-                                    if not lst[0] in pd.read_csv('data.csv').ID:
-                                        df.to_csv('data.csv',index=False,header=['ID','Name','Email','number'])
-                                except:
-                                    df.to_csv('data.csv',index=False,header=['ID','Name','Email','number'])
+                            # print(lst)
+                            if len(lst)>3:
+                                df=pd.DataFrame([lst])
+                                if os.path.isfile("data.csv"):
+
+                                    try:
+                                        if not self.IDExist(lst[0]):
+                                            df.to_csv('data.csv',mode='a',index=False,header=False)
+                                    except Exception as e:
+                                        # print('ho',e)
+                                        df.to_csv('data.csv',mode='a',index=False,header=False)
+                                else:
+                                    try:
+                                        if not self.IDExist(lst[0]):
+                                            df.to_csv('data.csv',index=False,header=['ID','Name','Email','number','Flag','Count','CurrentEmail'])
+                                    except Exception as e:
+                                        # print('ho',e)
+                                        df.to_csv('data.csv',index=False,header=['ID','Name','Email','number','Flag','Count','CurrentEmail'])
 
     
                 else:
@@ -146,21 +186,26 @@ class GmailFinin():
             not self.selectMailbox() and sys.exit()
         else:
             sys.exit()
-        not self.checkIfUsersWantsToContinue() and sys.exit()
         self.searchThroughMailbox()
         self.parseEmails()
-        #
         if os.path.isfile("data.csv"):
             df=pd.read_csv('data.csv')
-            data=df[['number','ID','Name','Email']]
+            data=df[['number','ID','Name','Email','Flag']]
             time = datetime.now()
             for i,j in df.iterrows():
                 number_temp,Name_temp,ID_temp,Email_temp=j['number'],j['Name'],j['ID'],j['Email']
                 msg='Hello {},\n Your transation is successful and your transation ID is {}\n We have also sent the payment receipt to {} Please Check !!'.format(Name_temp,ID_temp,Email_temp)
-                if len(str(number_temp))==11:
-                    kit.sendwhatmsg(f"+91-{int(str(number_temp)[1:])}",msg,time.hour,time.minute+1,10)
-                else:
-                    kit.sendwhatmsg(f"+91-{number_temp}",msg,time.hour,time.minute+1,10)
+                try:
+                    if not j['Flag']:
+                        if len(str(number_temp))==11:
+                            kit.sendwhatmsg(f"+91-{int(str(number_temp)[1:])}",msg,time.hour,time.minute+1,10)
+                        else:
+                            kit.sendwhatmsg(f"+91-{number_temp}",msg,time.hour,time.minute+1,10)
+                        df.loc[i,'Flag']=1
+                except:
+                    pass
+            df.to_csv('data.csv',index=False,header=['ID','Name','Email','number','Flag','Count','CurrentEmail'])
+
                 
 
 if __name__ == "__main__":
